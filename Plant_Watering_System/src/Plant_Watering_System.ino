@@ -22,16 +22,19 @@ TCPClient TheClient;
 // Setup the MQTT client class by passing in the WiFi client and MQTT server and login details.
 Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_KEY); 
 
-/****************************** Feeds ***************************************/ 
+//****************************** Feeds ***************************************/ 
 // Setup Feeds to publish or subscribe 
 // Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname> 
 Adafruit_MQTT_Publish mqttmoisture = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/moisture"); 
+Adafruit_MQTT_Publish mqtttemperature = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature");
+Adafruit_MQTT_Publish mqtthumidity = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/humidity");
 Adafruit_MQTT_Subscribe mqttplantWatering = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/plant_Monitor");
 /************Declare Variables*************/
 unsigned long last, lastTime;
 SYSTEM_MODE(SEMI_AUTOMATIC);
 byte count, i; //8-bit integer that goes from 0 to 255
 int moisturePin = A5;
+int soilMoisture; 
 const int SCREEN_WIDTH = 128;
 const int SCREEN_HEIGHT = 64;
 const int OLED_RESET = D4;
@@ -41,11 +44,13 @@ String DateTime , TimeOnly;
 int LEDPIN = D7;
 int ledValue; 
 bool status; 
-float tempC, pressPA, humidRH, tempF, inHG, currentTempF, lastTemp, lastHG, moisture;
+float tempC, pressPA, humidRH, tempF, inHG, currentTempF, lastTemp, lastHG;
+
+//void printMoistureRead(moisture);
+//void createEventPayLoad();
 
 
 Adafruit_SSD1306 display(OLED_RESET);
-I2CSoilMoistureSensor i2CSoilMoistureSensor(A5);
 Adafruit_BME280 bme;
 
 void setup()
@@ -85,7 +90,7 @@ void loop(){
   MQTT_connect();
   DateTime = Time.timeStr();
   TimeOnly = DateTime.substring(11, 19);
-  moisture = analogRead(moisturePin); 
+  soilMoisture = analogRead(moisturePin); 
   checkBME();
   Serial.printf("Date and time is %s\n", DateTime.c_str());
   Serial.printf("Time is %s\n", TimeOnly.c_str());
@@ -102,23 +107,42 @@ void loop(){
       last = millis();
    }
    if ((millis()-last)>60000){
-    moisture = analogRead(moisturePin); 
-    if (moisture > 2600){
+    soilMoisture = analogRead(moisturePin); 
+    if (soilMoisture > 2600){
     digitalWrite(A4, HIGH);
     delay (500);
     digitalWrite(A4, LOW);
     }
-   }
+
+    if ((millis() - last) >60000){
+      if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
+      Serial.printf("Publishing %i to Adafruit.io feed moisture \n",soilMoisture);
+      mqttmoisture.publish(soilMoisture); }
+      }
+
+      if ((millis() - last) >60000){
+        if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
+        Serial.printf("Publishing %f to Adafruit.io feed moisture \n",tempF);
+        mqtttemperature.publish(tempF); 
+        }
+      }
+      if ((millis() - last) >60000){
+        if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
+        Serial.printf("Publishing %f to Adafruit.io feed moisture \n",humidRH);
+        mqtthumidity.publish(humidRH); 
+        }
+      }
+    }
 
 
-  //this is our 'wait for incoming subscription packets' busy subloop
-  Adafruit_MQTT_Subscribe *subscription;
-  while ((subscription = mqtt.readSubscription(1000))) {
-     if (subscription == &mqttplantWatering) {
-       mqttmoisture = atof((char *)mqttplantWatering.lastread);
-           Serial.printf("Received %0.2f from Adafruit.io feed FeedNameB \n", mqttmoisture);
-     }
-  }
+   //this is our 'wait for incoming subscription packets' busy subloop
+  //  Adafruit_MQTT_Subscribe *subscription;
+  //  while ((subscription = mqtt.readSubscription(1000))) {
+  //     if (subscription == &mqttplantWatering) {
+  //       mqttmoisture = atof((char *)mqttplantWatering.lastread);
+  //           Serial.printf("Received %0.2f from Adafruit.io feed FeedNameB \n", mqttmoisture);
+  //     }
+  //  }
 }
 
 void testdrawstyles(void){
@@ -133,7 +157,7 @@ void testdrawstyles(void){
   display.setTextSize(1);  //Draw 5x-scale text
   display.setTextColor(WHITE);  
   display.setCursor(10, 10);
-  display.printf("Moisture is %i", moisture);
+  display.printf("Moisture is %i", soilMoisture);
   display.display();
   delay(1000);
 
@@ -182,6 +206,24 @@ void checkBME (void) {
   tempF = tempC*9/5+32;
   inHG = pressPA/3386; 
   Serial.printf("%f, %f, %f \n", tempF, inHG, humidRH);
+}
+
+ 
+
+void createEventPayLoad (void) {
+  JsonWriterStatic <256> jw;
+  {
+    JsonWriterAutoObject obj (&jw);
+
+    jw.insertKeyValue("moisture", soilMoisture);
+    //jw.insertKeyValue("lon", coord.lon);
+
+  }
+     if(mqtt.Update()) {
+      mqttmoisture.publish(jw.getBuffer()); 
+      Particle.publish("moisture", jw.getBuffer(), PRIVATE);
+
+    }
 }
 
   
