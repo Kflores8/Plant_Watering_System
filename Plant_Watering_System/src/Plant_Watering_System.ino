@@ -25,8 +25,8 @@ Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_K
 /****************************** Feeds ***************************************/ 
 // Setup Feeds to publish or subscribe 
 // Notice MQTT paths for AIO follow the form: <username>/feeds/<feedname> 
-Adafruit_MQTT_Publish mqttgeoPublish = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/geoLoc1"); 
-Adafruit_MQTT_Subscribe mqttgeoSub = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/geoLoc");
+Adafruit_MQTT_Publish mqttmoisture = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/moisture"); 
+Adafruit_MQTT_Subscribe mqttplant_Monitor = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/plant_Monitor");
 /************Declare Variables*************/
 unsigned long last, lastTime;
 SYSTEM_MODE(SEMI_AUTOMATIC);
@@ -77,8 +77,8 @@ void setup()
     if (status == false) {
       Serial.printf("BME280 at address 0x%02X failed to start \n", 0x76);
     }
-  // Setup MQTT subscription for onoff feed.
-  //mqtt.subscribe(&mqttDice2);
+  //Setup MQTT subscription for onoff feed.
+  mqtt.subscribe(&plant_Monitor);
   //mqtt.subscribe(&mqttbutton1);
 }
 
@@ -112,22 +112,23 @@ void loop(){
    }
 
 
-  // this is our 'wait for incoming subscription packets' busy subloop
+  //this is our 'wait for incoming subscription packets' busy subloop
   Adafruit_MQTT_Subscribe *subscription;
-  // while ((subscription = mqtt.readSubscription(1000))) {
-  //   if (subscription == &mqttDice2) {
-  //     diceRoll2 = atof((char *)mqttDice2.lastread);
-  //         Serial.printf("Received %0.2f from Adafruit.io feed FeedNameB \n",diceRoll2);
-  //   }
-  //   if (subscription == &mqttbutton1) {
+  while ((subscription = mqtt.readSubscription(1000))) {
+     if (subscription == &mqttplant_Monitor) {
+       mqttplant_Monitor = atof((char *)mqttplant_Monitor.lastread);
+           Serial.printf("Received %0.2f from Adafruit.io feed FeedNameB \n", mqttplant_Monitor);
+     }
+  // if (subscription == &mqttbutton1) {
   //     buttonOnOff = atoi((char *)mqttbutton1.lastread);
   //         Serial.printf("Recieved %i from Adafruit.io feed FeedNameB \n", buttonOnOff);
   //   }
   // }
 
+  }
 }
 
-void testdrawstyles(void) {
+void testdrawstyles(void){
   display.clearDisplay();
   display.setTextSize(1);  //Draw 5x-scale text
   display.setTextColor(WHITE);  
