@@ -20,6 +20,7 @@
 #include "JsonParserGeneratorRK.h"
 #include "credentials.h"
 #include "Adafruit_BME280.h"
+#include "math.h"
 
 
 /************ Global State (you don't need to change this!) ***   ***************/ 
@@ -29,7 +30,8 @@ void testdrawstyles(void);
 void MQTT_connect();
 void checkBME (void);
 void createEventPayLoad (void);
-#line 20 "/Users/Brosana/Documents/IoT/Plant_Watering_System/Plant_Watering_System/src/Plant_Watering_System.ino"
+void getDust();
+#line 21 "/Users/Brosana/Documents/IoT/Plant_Watering_System/Plant_Watering_System/src/Plant_Watering_System.ino"
 TCPClient TheClient; 
 
 // Setup the MQTT client class by passing in the WiFi client and MQTT server and login details.
@@ -41,6 +43,7 @@ Adafruit_MQTT_SPARK mqtt(&TheClient,AIO_SERVER,AIO_SERVERPORT,AIO_USERNAME,AIO_K
 Adafruit_MQTT_Publish mqttmoisture = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/moisture"); 
 Adafruit_MQTT_Publish mqtttemperature = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature");
 Adafruit_MQTT_Publish mqtthumidity = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/humidity");
+Adafruit_MQTT_Publish mqttgetDust = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/concentration");
 Adafruit_MQTT_Subscribe mqttplantWatering = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/plant_Monitor");
 /************Declare Variables*************/
 unsigned long last, lastTime;
@@ -56,6 +59,15 @@ String DateTime , TimeOnly;
 //float diceRoll1, diceRoll2, ledOn;
 int LEDPIN = D7;
 int ledValue; 
+
+int dustPin = D8;
+unsigned long duration;
+unsigned long starttime; 
+unsigned long timems = 60000;
+unsigned long lowpulseoccupancy = 0;
+float ratio = 0;
+float concentration = 0;
+
 bool status; 
 float tempC, pressPA, humidRH, tempF, inHG, currentTempF, lastTemp, lastHG;
 
@@ -81,6 +93,8 @@ void setup()
   Time.zone(-6);
   Particle.syncTime();
   delay(1000);
+  pinMode(dustPin, INPUT);
+  starttime = millis();
   pinMode(moisturePin, INPUT);
   pinMode(A4, OUTPUT);
   status = bme.begin(0x76);
@@ -105,6 +119,7 @@ void loop(){
   TimeOnly = DateTime.substring(11, 19);
   soilMoisture = analogRead(moisturePin); 
   checkBME();
+  getDust();
   Serial.printf("Date and time is %s\n", DateTime.c_str());
   Serial.printf("Time is %s\n", TimeOnly.c_str());
   testdrawstyles();
@@ -145,7 +160,13 @@ void loop(){
         mqtthumidity.publish(humidRH); 
         }
       }
+      if ((millis() - last) >60000){
+        if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
+        Serial.printf("Publishing %f to Adafruit.io feed moisture \n",getDust);
+        mqtthumidity.publish(concentration); 
     }
+  }
+}
 
 
    //this is our 'wait for incoming subscription packets' busy subloop
@@ -187,6 +208,14 @@ void testdrawstyles(void){
   display.setCursor(10, 30);
   //display.setRotation(2);
   display.printf("Humidity is %f", humidRH);
+  display.display();
+  delay(1000);
+
+  display.setTextSize(1);  //Draw 5x-scale text
+  display.setTextColor(WHITE);
+  display.setCursor(10, 40);
+  //display.setRotation(2);
+  display.printf("Particulants is %f", concentration);
   display.display();
   delay(1000);
 
@@ -239,4 +268,16 @@ void createEventPayLoad (void) {
     }
 }
 
-  
+void getDust() {
+duration = pulseIn(dustPin, LOW);
+lowpulseoccupancy = lowpulseoccupancy+duration; 
+
+  if ((millis()-starttime) > timems) {
+    ratio = lowpulseoccupancy/(timems*10.00);
+    concentration = 1.1*pow(ratio,3)-3.8*pow(ratio,2)+520*ratio+0.62;
+    Serial.printf("lowpulseoccupancy, ratio, and concentration is %f \n", concentration);
+    lowpulseoccupancy = 0;
+    starttime = millis();
+
+  }
+}
