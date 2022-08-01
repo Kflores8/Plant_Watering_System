@@ -68,6 +68,7 @@ Adafruit_SSD1306 display(OLED_RESET);
 Adafruit_BME280 bme;
 AirQualitySensor sensor(A0);
 
+
 void setup()
 {
   Serial.begin(9600);
@@ -81,8 +82,8 @@ void setup()
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
   display.display();
   Time.zone(-6);
+  sensor.init();
   Particle.syncTime();
-  grove_Air_quality_Sensor.begin();
   delay(1000);
   pinMode(dustPin, INPUT);
   starttime = millis();
@@ -280,7 +281,7 @@ lowpulseoccupancy = lowpulseoccupancy+duration;
     concentration = 1.1*pow(ratio,3)-3.8*pow(ratio,2)+520*ratio+0.62;
     Serial.printf("lowpulseoccupancy, ratio, and concentration is %f \n", concentration);
     Serial.printf("ratio is %f \n", ratio);
-    Serial.printf("lowpulseoccupancy is %f \n", lowpulseoccupancy);
+    Serial.printf("lowpulseoccupancy is %i \n", lowpulseoccupancy);
     lowpulseoccupancy = 0;
     starttime = millis();
 
