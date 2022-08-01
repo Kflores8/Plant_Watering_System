@@ -31,38 +31,41 @@ Adafruit_MQTT_Publish mqttmoisture = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "
 Adafruit_MQTT_Publish mqtttemperature = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/temperature");
 Adafruit_MQTT_Publish mqtthumidity = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/humidity");
 Adafruit_MQTT_Publish mqttgetDust = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/concentration");
+Adafruit_MQTT_Publish mqttairQuality = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/airValue");
 Adafruit_MQTT_Subscribe mqttplantWatering = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/plant_Monitor");
+Adafruit_MQTT_Subscribe mqttbutton1 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/ButtonFeed");
 /************Declare Variables*************/
 unsigned long last, lastTime;
 SYSTEM_MODE(SEMI_AUTOMATIC);
 byte count, i; //8-bit integer that goes from 0 to 255
 int moisturePin = A5;
+int waterPump = A4; 
 int soilMoisture; 
-const int SCREEN_WIDTH = 128;
-const int SCREEN_HEIGHT = 64;
-const int OLED_RESET = D4;
-const int SCREEN_ADDRESS = 0x3C;
-String DateTime , TimeOnly;
-//float diceRoll1, diceRoll2, ledOn;
 int LEDPIN = D7;
 int ledValue; 
 int current_quality =-1;
 int dustPin = D8;
+int qualityValue;
+int airValue; 
+int buttonOnOff; 
+
+const int SCREEN_WIDTH = 128;
+const int SCREEN_HEIGHT = 64;
+const int OLED_RESET = D4;
+const int SCREEN_ADDRESS = 0x3C;
+
+String DateTime , TimeOnly;
 
 unsigned long duration;
 unsigned long starttime; 
 unsigned long timems = 60000;
 unsigned long lowpulseoccupancy = 0;
 
+float tempC, pressPA, humidRH, tempF, inHG, currentTempF, lastTemp, lastHG;
 float ratio = 0;
 float concentration = 0;
 
 bool status; 
-float tempC, pressPA, humidRH, tempF, inHG, currentTempF, lastTemp, lastHG;
-
-//void printMoistureRead(moisture);
-//void createEventPayLoad();
-
 
 Adafruit_SSD1306 display(OLED_RESET);
 Adafruit_BME280 bme;
@@ -112,7 +115,7 @@ void setup()
       Serial.printf("BME280 at address 0x%02X failed to start \n", 0x76);
     }
   //Setup MQTT subscription for onoff feed.
-  mqtt.subscribe(&mqttplantWatering);
+  mqtt.subscribe(&mqttbutton1);
   //mqtt.subscribe(&mqttbutton1);
 }
 
@@ -141,10 +144,23 @@ void loop(){
    if ((millis()-last)>60000){
     soilMoisture = analogRead(moisturePin); 
     if (soilMoisture > 2600){
-    digitalWrite(A4, HIGH);
+    digitalWrite(waterPump, HIGH);
     delay (500);
-    digitalWrite(A4, LOW);
+    digitalWrite(waterPump, LOW);
     }
+
+      Adafruit_MQTT_Subscribe *subscription;
+        if (subscription == &mqttbutton1) {
+          buttonOnOff = atoi((char *)mqttbutton1.lastread);
+          Serial.printf("Recieved %i from Adafruit.io feed FeedNameB \n", buttonOnOff);
+        }  
+            if (buttonOnOff) { 
+            digitalWrite(waterPump, HIGH); 
+            }
+              else {
+              digitalWrite(waterPump, LOW); 
+              }
+    
 
     if ((millis() - last) >60000){
       if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
@@ -154,34 +170,31 @@ void loop(){
 
       if ((millis() - last) >60000){
         if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
-        Serial.printf("Publishing %f to Adafruit.io feed moisture \n",tempF);
+        Serial.printf("Publishing %f to Adafruit.io feed temperature \n",tempF);
         mqtttemperature.publish(tempF); 
         }
       }
       if ((millis() - last) >60000){
         if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
-        Serial.printf("Publishing %f to Adafruit.io feed moisture \n",humidRH);
+        Serial.printf("Publishing %f to Adafruit.io feed humidity \n",humidRH);
         mqtthumidity.publish(humidRH); 
         }
       }
       if ((millis() - last) >60000){
         if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
-        Serial.printf("Publishing %f to Adafruit.io feed moisture \n",getDust);
-        mqtthumidity.publish(concentration); 
+        Serial.printf("Publishing %f to Adafruit.io feed particulants in cf \n",concentration);
+        mqttgetDust.publish(concentration); 
     }
   }
+      if ((millis() - last) > 60000) {
+        if (mqtt.Update()) {
+          Serial.printf("Sensor value: %i, \n Quality value: %i to Adafruit.io feed Air Quality\n", airValue);
+          mqttairQuality.publish(airValue);
+        }
+      }
+   }
 }
 
-
-   //this is our 'wait for incoming subscription packets' busy subloop
-  //  Adafruit_MQTT_Subscribe *subscription;
-  //  while ((subscription = mqtt.readSubscription(1000))) {
-  //     if (subscription == &mqttplantWatering) {
-  //       mqttmoisture = atof((char *)mqttplantWatering.lastread);
-  //           Serial.printf("Received %0.2f from Adafruit.io feed FeedNameB \n", mqttmoisture);
-  //     }
-  //  }
-}
 
 void testdrawstyles(void){
   display.clearDisplay();
@@ -220,6 +233,14 @@ void testdrawstyles(void){
   display.setCursor(10, 40);
   //display.setRotation(2);
   display.printf("Particulants is %f", concentration);
+  display.display();
+  delay(1000);
+
+  display.setTextSize(1);  //Draw 5x-scale text
+  display.setTextColor(WHITE);
+  display.setCursor(10, 50);
+  //display.setRotation(2);
+  display.printf("Air Quality %i", airValue);
   display.display();
   delay(1000);
 
@@ -290,36 +311,22 @@ lowpulseoccupancy = lowpulseoccupancy+duration;
 
 void airQuality() {
   
-  int quality = sensor.slope();
-  Serial.printf("Sensor value: %f \n", sensor.getValue());
+  qualityValue = sensor.slope();
+  airValue = sensor.getValue(); 
+  Serial.printf("Sensor value: %i, \n Quality value: %i \n", airValue, qualityValue);
   
-  if (quality == AirQualitySensor::FORCE_SIGNAL) {
+  if (qualityValue == AirQualitySensor::FORCE_SIGNAL) {
     Serial.printf("High pollution! Force signal active.");
   }
-  else if (quality == AirQualitySensor::HIGH_POLLUTION) {
+  else if (qualityValue == AirQualitySensor::HIGH_POLLUTION) {
     Serial.printf("High pollution!");
   }
-  else if (quality == AirQualitySensor::LOW_POLLUTION) {
+  else if (qualityValue == AirQualitySensor::LOW_POLLUTION) {
     Serial.printf("Low pollution!");
   }
-  else if (quality == AirQualitySensor::FRESH_AIR) {
+  else if (qualityValue == AirQualitySensor::FRESH_AIR) {
     Serial.printf("Fresh air.");
   }
   
   delay(1000);
 }
-// ISR (TIMER2_OVF_vect)
-// {
-//     if(airqualitysensor.counter==122)//set 2 seconds as a detected duty
-//     {
-//         airqualitysensor.last_vol=airqualitysensor.first_vol;
-//         airqualitysensor.first_vol=analogRead(A0);
-//         airqualitysensor.counter=0;
-//         airqualitysensor.timer_index=1;
-//         PORTB=PORTB^0x20;
-//     }
-//     else
-//     {
-//         airqualitysensor.counter++;
-//     }
-// }
