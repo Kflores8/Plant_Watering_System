@@ -14,6 +14,7 @@
 #include "JsonParserGeneratorRK.h"
 #include "credentials.h"
 #include "Adafruit_BME280.h"
+#include "Grove_Air_quality_Sensor.h"
 #include "math.h"
 
 
@@ -45,12 +46,14 @@ String DateTime , TimeOnly;
 //float diceRoll1, diceRoll2, ledOn;
 int LEDPIN = D7;
 int ledValue; 
-
+int current_quality =-1;
 int dustPin = D8;
+
 unsigned long duration;
 unsigned long starttime; 
 unsigned long timems = 60000;
 unsigned long lowpulseoccupancy = 0;
+
 float ratio = 0;
 float concentration = 0;
 
@@ -63,6 +66,7 @@ float tempC, pressPA, humidRH, tempF, inHG, currentTempF, lastTemp, lastHG;
 
 Adafruit_SSD1306 display(OLED_RESET);
 Adafruit_BME280 bme;
+AirQualitySensor sensor(A0);
 
 void setup()
 {
@@ -78,11 +82,23 @@ void setup()
   display.display();
   Time.zone(-6);
   Particle.syncTime();
+  grove_Air_quality_Sensor.begin();
   delay(1000);
   pinMode(dustPin, INPUT);
   starttime = millis();
   pinMode(moisturePin, INPUT);
   pinMode(A4, OUTPUT);
+
+  Serial.printf("Waiting sensor to init...");
+  delay(20000);
+  
+    if (sensor.init()) {
+      Serial.printf("Sensor ready.");
+    }
+    else {
+      Serial.printf("Sensor ERROR!");
+    }
+
   status = bme.begin(0x76);
 
   Wire.setSpeed(400000);
@@ -106,6 +122,7 @@ void loop(){
   soilMoisture = analogRead(moisturePin); 
   checkBME();
   getDust();
+  airQuality();
   Serial.printf("Date and time is %s\n", DateTime.c_str());
   Serial.printf("Time is %s\n", TimeOnly.c_str());
   testdrawstyles();
@@ -262,8 +279,46 @@ lowpulseoccupancy = lowpulseoccupancy+duration;
     ratio = lowpulseoccupancy/(timems*10.00);
     concentration = 1.1*pow(ratio,3)-3.8*pow(ratio,2)+520*ratio+0.62;
     Serial.printf("lowpulseoccupancy, ratio, and concentration is %f \n", concentration);
+    Serial.printf("ratio is %f \n", ratio);
+    Serial.printf("lowpulseoccupancy is %f \n", lowpulseoccupancy);
     lowpulseoccupancy = 0;
     starttime = millis();
 
   }
 }
+
+void airQuality() {
+  
+  int quality = sensor.slope();
+  Serial.printf("Sensor value: %f \n", sensor.getValue());
+  
+  if (quality == AirQualitySensor::FORCE_SIGNAL) {
+    Serial.printf("High pollution! Force signal active.");
+  }
+  else if (quality == AirQualitySensor::HIGH_POLLUTION) {
+    Serial.printf("High pollution!");
+  }
+  else if (quality == AirQualitySensor::LOW_POLLUTION) {
+    Serial.printf("Low pollution!");
+  }
+  else if (quality == AirQualitySensor::FRESH_AIR) {
+    Serial.printf("Fresh air.");
+  }
+  
+  delay(1000);
+}
+// ISR (TIMER2_OVF_vect)
+// {
+//     if(airqualitysensor.counter==122)//set 2 seconds as a detected duty
+//     {
+//         airqualitysensor.last_vol=airqualitysensor.first_vol;
+//         airqualitysensor.first_vol=analogRead(A0);
+//         airqualitysensor.counter=0;
+//         airqualitysensor.timer_index=1;
+//         PORTB=PORTB^0x20;
+//     }
+//     else
+//     {
+//         airqualitysensor.counter++;
+//     }
+// }
