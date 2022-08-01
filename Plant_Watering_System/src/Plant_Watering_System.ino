@@ -32,18 +32,16 @@ Adafruit_MQTT_Publish mqtttemperature = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAM
 Adafruit_MQTT_Publish mqtthumidity = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/humidity");
 Adafruit_MQTT_Publish mqttgetDust = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/concentration");
 Adafruit_MQTT_Publish mqttairQuality = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/airValue");
-Adafruit_MQTT_Subscribe mqttbutton1 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/ButtonFeed");
+Adafruit_MQTT_Subscribe mqttbutton1 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/buttonfeed");
 /************Declare Variables*************/
 unsigned long last, last2, last3, lastTime;
 SYSTEM_MODE(SEMI_AUTOMATIC);
 byte count, i; //8-bit integer that goes from 0 to 255
 int moisturePin = A5;
 int waterPump = A4; 
-int soilMoisture; 
-int LEDPIN = D7;
-int ledValue; 
-int current_quality =-1;
 int dustPin = D8;
+int soilMoisture; 
+int current_quality =-1;
 int qualityValue;
 int airValue; 
 
@@ -117,17 +115,6 @@ void setup() {
 
 void loop(){
   MQTT_connect();
-
-  Adafruit_MQTT_Subscribe *subscription;
-  if (subscription == &mqttbutton1) {
-  buttonOnOff = atoi((char *)mqttbutton1.lastread);
-      if (buttonOnOff = 1) { 
-      digitalWrite(waterPump, HIGH); 
-      delay (500);
-      digitalWrite(waterPump, LOW); 
-      }
-      Serial.printf("Recieved %i from Adafruit.io feed ButtonFeed \n", buttonOnOff);
-  } 
   DateTime = Time.timeStr();
   TimeOnly = DateTime.substring(11, 19);
   checkBME();
@@ -152,7 +139,7 @@ void loop(){
       }
       last = millis();
    }
-   if ((millis()-last2)>1800000){
+   if ((millis()-last2)>60000){
     soilMoisture = analogRead(moisturePin); 
     if (soilMoisture > 2600){
     digitalWrite(waterPump, HIGH);
@@ -161,6 +148,20 @@ void loop(){
     last2 = millis();
     }
    }
+
+
+  Adafruit_MQTT_Subscribe *subscription;
+  while ((subscription = mqtt.readSubscription(1000))) {
+  if (subscription == &mqttbutton1) {
+  buttonOnOff = atoi((char *)mqttbutton1.lastread);
+      if (buttonOnOff = 1) { 
+      digitalWrite(waterPump, HIGH); 
+      delay (500);
+      digitalWrite(waterPump, LOW); 
+      }
+      Serial.printf("Recieved %i from Adafruit.io feed ButtonFeed \n", buttonOnOff);
+  } 
+}
 
     if ((millis() - last3) > 100000){
       if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
