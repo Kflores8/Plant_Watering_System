@@ -33,7 +33,7 @@ Adafruit_MQTT_Publish mqtthumidity = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "
 Adafruit_MQTT_Publish mqttgetDust = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/concentration");
 Adafruit_MQTT_Publish mqttairQuality = Adafruit_MQTT_Publish(&mqtt, AIO_USERNAME "/feeds/airValue");
 Adafruit_MQTT_Subscribe mqttplantWatering = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/plant_Monitor");
-Adafruit_MQTT_Subscribe mqttbutton1 = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/ButtonFeed");
+Adafruit_MQTT_Subscribe mqttButtonFeed = Adafruit_MQTT_Subscribe(&mqtt, AIO_USERNAME "/feeds/ButtonFeed");
 /************Declare Variables*************/
 unsigned long last, lastTime;
 SYSTEM_MODE(SEMI_AUTOMATIC);
@@ -115,7 +115,7 @@ void setup()
       Serial.printf("BME280 at address 0x%02X failed to start \n", 0x76);
     }
   //Setup MQTT subscription for onoff feed.
-  mqtt.subscribe(&mqttbutton1);
+  mqtt.subscribe(&mqttButtonFeed);
   //mqtt.subscribe(&mqttbutton1);
 }
 
@@ -130,7 +130,6 @@ void loop(){
   Serial.printf("Date and time is %s\n", DateTime.c_str());
   Serial.printf("Time is %s\n", TimeOnly.c_str());
   testdrawstyles();
-  delay(10000); // only loop every 10 seconds
 
   // Ping MQTT Broker every 2 minutes to keep connection alive
   if ((millis()-last)>120000) {
@@ -148,45 +147,43 @@ void loop(){
     delay (500);
     digitalWrite(waterPump, LOW);
     }
-
-      Adafruit_MQTT_Subscribe *subscription;
-        if (subscription == &mqttbutton1) {
-          buttonOnOff = atoi((char *)mqttbutton1.lastread);
-          Serial.printf("Recieved %i from Adafruit.io feed FeedNameB \n", buttonOnOff);
-        }  
             if (buttonOnOff) { 
             digitalWrite(waterPump, HIGH); 
+            delay (500);
+            digitalWrite(waterPump, LOW); 
             }
-              else {
-              digitalWrite(waterPump, LOW); 
-              }
+Adafruit_MQTT_Subscribe *subscription;
+  if (subscription == &mqttButtonFeed) {
+  buttonOnOff = atoi((char *)mqttButtonFeed.lastread);
+  Serial.printf("Recieved %i from Adafruit.io feed ButtonFeed \n", buttonOnOff);
+        } 
     
 
-    if ((millis() - last) >60000){
+    if ((millis() - last) > 100000){
       if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
       Serial.printf("Publishing %i to Adafruit.io feed moisture \n",soilMoisture);
       mqttmoisture.publish(soilMoisture); }
       }
 
-      if ((millis() - last) >60000){
+      if ((millis() - last) > 100000){
         if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
         Serial.printf("Publishing %f to Adafruit.io feed temperature \n",tempF);
         mqtttemperature.publish(tempF); 
         }
       }
-      if ((millis() - last) >60000){
+      if ((millis() - last) > 100000){
         if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
         Serial.printf("Publishing %f to Adafruit.io feed humidity \n",humidRH);
         mqtthumidity.publish(humidRH); 
         }
       }
-      if ((millis() - last) >60000){
+      if ((millis() - last) > 100000){
         if(mqtt.Update()) { //if mqtt object (Adafruit.io) is available to receive data
         Serial.printf("Publishing %f to Adafruit.io feed particulants in cf \n",concentration);
         mqttgetDust.publish(concentration); 
     }
   }
-      if ((millis() - last) > 60000) {
+      if ((millis() - last) > 100000) {
         if (mqtt.Update()) {
           Serial.printf("Sensor value: %i, \n Quality value: %i to Adafruit.io feed Air Quality\n", airValue);
           mqttairQuality.publish(airValue);
@@ -203,14 +200,14 @@ void testdrawstyles(void){
   display.setCursor(10, 0);
   display.printf("Time is %s", TimeOnly.c_str());
   display.display();
-  delay(1000);
+
 
   display.setTextSize(1);  //Draw 5x-scale text
   display.setTextColor(WHITE);  
   display.setCursor(10, 10);
   display.printf("Moisture is %i", soilMoisture);
   display.display();
-  delay(1000);
+
 
   display.setTextSize(1);  //Draw 5x-scale text
   display.setTextColor(WHITE);
@@ -218,7 +215,7 @@ void testdrawstyles(void){
   //display.setRotation(2);
   display.printf("Temp is %f", tempF);
   display.display();
-  delay(1000);
+
 
   display.setTextSize(1);  //Draw 5x-scale text
   display.setTextColor(WHITE);
@@ -226,7 +223,7 @@ void testdrawstyles(void){
   //display.setRotation(2);
   display.printf("Humidity is %f", humidRH);
   display.display();
-  delay(1000);
+
 
   display.setTextSize(1);  //Draw 5x-scale text
   display.setTextColor(WHITE);
@@ -234,7 +231,7 @@ void testdrawstyles(void){
   //display.setRotation(2);
   display.printf("Particulants is %f", concentration);
   display.display();
-  delay(1000);
+
 
   display.setTextSize(1);  //Draw 5x-scale text
   display.setTextColor(WHITE);
@@ -242,7 +239,6 @@ void testdrawstyles(void){
   //display.setRotation(2);
   display.printf("Air Quality %i", airValue);
   display.display();
-  delay(1000);
 
 }
 
@@ -327,6 +323,4 @@ void airQuality() {
   else if (qualityValue == AirQualitySensor::FRESH_AIR) {
     Serial.printf("Fresh air.");
   }
-  
-  delay(1000);
 }
